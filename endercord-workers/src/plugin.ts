@@ -116,11 +116,12 @@ export async function pluginGet<T>(
   return [resp.status, parseJson<T>(resp.body)];
 }
 
+// ctx must be the signed click on a /console confirmation; the plugin reads the command from it.
 export async function pluginExec(
-  server: Server, command: string, ctx: RequestCtx,
+  server: Server, ctx: RequestCtx,
 ): Promise<[number, { output?: string; error?: string }]> {
   const { host, port } = hostPort(server);
-  const resp = await rawRequest(host, port, 'POST', '/exec', withSignature(server, ctx), JSON.stringify({ command }), 10000);
+  const resp = await rawRequest(host, port, 'POST', '/exec', withSignature(server, ctx), '{}', 10000);
   return [resp.status, parseJson(resp.body)];
 }
 

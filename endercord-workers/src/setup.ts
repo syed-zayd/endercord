@@ -6,14 +6,14 @@ export async function handleSetup(request: Request, env: Env): Promise<Response>
   const ip = request.headers.get('CF-Connecting-IP');
   if (!ip) return Response.json({ error: 'could not determine server IP' }, { status: 400 });
 
-  let payload: { secret?: string; port?: number; host?: string; mc_port?: number };
+  let payload: { secret?: string; port?: number; host?: string; mc_port?: number; server_id?: string; server_name?: string };
   try {
     payload = await request.json();
   } catch {
     return Response.json({ error: 'invalid json' }, { status: 400 });
   }
 
-  const { secret, port = 8080, host: connectHost, mc_port } = payload;
+  const { secret, port = 8080, host: connectHost, mc_port, server_id, server_name } = payload;
   if (!secret) return Response.json({ error: 'missing secret' }, { status: 400 });
 
   const pluginUrl = `http://${ip}:${port}`;
@@ -36,11 +36,12 @@ export async function handleSetup(request: Request, env: Env): Promise<Response>
     }, { status: 400 });
   }
 
-  await upsertServer(env, host, pluginUrl, secret, mcPort);
+  await upsertServer(env, host, pluginUrl, secret, mcPort, server_id?.trim() || null, server_name?.trim() || null);
 
+  // The plugin fetches this application's public key from Discord itself, so it never has to trust ours.
   return Response.json({
     ok: true,
-    discord_public_key: env.DISCORD_PUBLIC_KEY,
+    application_id: env.DISCORD_APP_ID,
     host,
     plugin_url: pluginUrl,
   });

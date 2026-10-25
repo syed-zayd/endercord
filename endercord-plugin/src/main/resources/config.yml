@@ -1,3 +1,8 @@
 http-port: 8080
 secret: ""
+# Name shown in /console confirmations. Defaults to the hostname you connected with at setup.
+server_name: ""
+# Filled in by /endercord setup. The public key is fetched from Discord, not from the bot.
+server_id: ""
+discord_application_id: ""
 discord_public_key: ""

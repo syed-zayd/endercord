@@ -1,5 +1,5 @@
 import { COLORS, sendChannelMessage, sendDM } from './discord.js';
-import { addUserToServer, getChannelsByServer, getRegisteredUser, getUserByName, getServerBySecret } from './db.js';
+import { addPendingLink, addUserToServer, getChannelsByServer, getRegisteredUser, getUserByName, getServerBySecret } from './db.js';
 import type { Env } from './types.js';
 
 export async function handlePluginEvent(request: Request, env: Env): Promise<Response> {
@@ -15,6 +15,7 @@ export async function handlePluginEvent(request: Request, env: Env): Promise<Res
 
   if (type === 'whitelist_add')    return handleWhitelistAdd(payload, secret, env);
   if (type === 'whitelist_remove') return handleWhitelistRemove(payload, secret, env);
+  if (type === 'link_invite')      return handleLinkInvite(payload, secret, env);
 
   const server = await getServerBySecret(env, secret);
   if (!server) return Response.json({ error: 'unauthorized' }, { status: 401 });
@@ -105,4 +106,30 @@ async function handleWhitelistRemove(payload: Record<string, unknown>, secret: s
   }
 
   return Response.json({ ok: true, discord_id: user.discord_id });
+}
+
+// The plugin invited a Discord username. It whitelists them only when Discord signs a /link from
+// that exact username, so the bot just records the invite and lets them know.
+async function handleLinkInvite(payload: Record<string, unknown>, secret: string, env: Env): Promise<Response> {
+  const username = String(payload.username ?? '').trim();
+  const notify   = payload.notify !== false;
+
+  const server = await getServerBySecret(env, secret);
+  if (!server) return Response.json({ error: 'unauthorized' }, { status: 401 });
+  if (!username) return Response.json({ error: 'missing username' }, { status: 400 });
+
+  await addPendingLink(env, server.id, username);
+
+  const user = await getUserByName(env, username);
+  if (notify && user?.allow_ops) {
+    await sendDM(env, user.discord_id, {
+      embeds: [{
+        title: 'Server Invite',
+        description: `A server operator invited you to **${server.display_name ?? server.host}**.\n\nRun \`/link\` within 30 minutes to accept.`,
+        color: COLORS.BLURPLE,
+      }],
+    });
+  }
+
+  return Response.json({ ok: true });
 }

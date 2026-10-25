@@ -49,6 +49,7 @@ export const commands = [
     description: 'Run a Minecraft server console command',
     options: [{ type: STR, name: 'command', description: 'The command to run', required: true }],
   },
+  { name: 'link', description: 'Accept invites to Minecraft servers that whitelisted your username' },
   { name: 'tps',  description: 'Show server TPS (ticks per second)' },
   { name: 'list', description: 'Show online players' },
   { name: 'serverinfo', description: 'Show live server status — MOTD, players, version, icon' },

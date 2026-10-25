@@ -41,10 +41,21 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
     private HttpServer httpServer;
     private Connection db;
 
+    private static final String DISCORD_API = "https://discord.com/api/v10";
+    private static final long LINK_INVITE_MS = 30 * 60 * 1000;
+
     private String secret = "";
     private String discordPublicKey = "";
-    private final Set<String> whitelist = Collections.synchronizedSet(new HashSet<>());
+    private String discordAppId = "";
+    private String serverId = "";
+    private String serverName = "";
+    // Discord user ID -> username (empty when added by ID and never linked)
+    private final Map<String, String> whitelist = new ConcurrentHashMap<>();
     private File whitelistFile;
+
+    // Lowercased Discord username -> expiry, for /endercord whitelist add <username>.
+    // The invite is accepted only by a Discord-signed /link from that exact username.
+    private final Map<String, Long> pendingLinks = new ConcurrentHashMap<>();
 
     // Hostname each online player connected with (the handshake vhost), keyed by UUID.
     // Used by /endercord setup to register the server by the hostname the operator used.
@@ -65,9 +76,18 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
         }
 
         discordPublicKey = getConfig().getString("discord_public_key", "");
+        discordAppId     = getConfig().getString("discord_application_id", "");
         if (discordPublicKey.isEmpty()) {
             getLogger().warning("Discord public key not set. Run /endercord setup before using bot commands.");
         }
+
+        serverId = getConfig().getString("server_id", "");
+        if (serverId.isEmpty()) {
+            serverId = generateSecret().substring(0, 8);
+            getConfig().set("server_id", serverId);
+            saveConfig();
+        }
+        serverName = getConfig().getString("server_name", "").trim();
 
         getDataFolder().mkdirs();
         whitelistFile = new File(getDataFolder(), "whitelist.json");
@@ -145,7 +165,7 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
                     sender.sendMessage("§eWhitelist is empty. No Discord users have been granted access.");
                 } else {
                     sender.sendMessage("§eWhitelisted Discord users (" + whitelist.size() + "):");
-                    whitelist.forEach(id -> sender.sendMessage("  §7" + id));
+                    whitelist.forEach((id, name) -> sender.sendMessage("  §7" + id + (name.isEmpty() ? "" : " §8(" + name + ")")));
                 }
                 return;
             }
@@ -164,39 +184,55 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
                     sender.sendMessage("§cRun /endercord setup first before managing the whitelist.");
                     return;
                 }
-                String discordUser = args[2];
+                String discordUser = args[2].trim();
                 boolean notify = args.length < 4 || !args[3].equalsIgnoreCase("false");
-                String eventType = sub.equals("add") ? "whitelist_add" : "whitelist_remove";
+                boolean isId = discordUser.matches("\\d{17,20}");
 
-                sender.sendMessage("§eProcessing whitelist " + sub + " for §b" + discordUser + "§e...");
-
-                JsonObject payload = new JsonObject();
-                payload.addProperty("type",         eventType);
-                payload.addProperty("discord_user", discordUser);
-                payload.addProperty("notify",       notify);
-
-                Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
-                    try {
-                        String responseBody = postJson(BOT_EVENT_URL, gson.toJson(payload), secret, 5000);
-                        String discordId = extractJsonField(responseBody, "discord_id");
-
-                        if (sub.equals("add")) {
-                            if (!discordId.isEmpty()) {
-                                whitelist.add(discordId);
-                                saveWhitelist();
-                            }
-                            String msg = "§aAdded §b" + discordUser + "§a to whitelist" + (notify ? " — they will receive a DM." : ".");
-                            Bukkit.getScheduler().runTask(this, () -> sender.sendMessage(msg));
-                        } else {
-                            if (!discordId.isEmpty()) {
-                                whitelist.remove(discordId);
-                                saveWhitelist();
-                            }
-                            String msg = "§aRemoved §b" + discordUser + "§a from whitelist" + (notify ? " — they will receive a DM." : ".");
+                if (sub.equals("add") && !isId) {
+                    pendingLinks.put(discordUser.toLowerCase(), System.currentTimeMillis() + LINK_INVITE_MS);
+                    JsonObject invite = new JsonObject();
+                    invite.addProperty("type",     "link_invite");
+                    invite.addProperty("username", discordUser);
+                    invite.addProperty("notify",   notify);
+                    sender.sendMessage("§eInvited §b" + discordUser + "§e. They have 30 minutes to run §f/link§e in Discord.");
+                    Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+                        try {
+                            postJson(BOT_EVENT_URL, gson.toJson(invite), secret, 5000);
+                        } catch (IOException e) {
+                            String msg = "§eThe bot could not DM them (" + e.getMessage() + "). Ask them to run /link.";
                             Bukkit.getScheduler().runTask(this, () -> sender.sendMessage(msg));
                         }
+                    });
+                    return;
+                }
+
+                String discordId = isId ? discordUser : idForUsername(discordUser);
+                if (discordId == null) {
+                    if (pendingLinks.remove(discordUser.toLowerCase()) != null) {
+                        sender.sendMessage("§aCancelled the pending invite for §b" + discordUser + "§a.");
+                    } else {
+                        sender.sendMessage("§c" + discordUser + " is not on the whitelist. Use their Discord user ID if they never linked.");
+                    }
+                    return;
+                }
+
+                if (sub.equals("add")) {
+                    whitelist.putIfAbsent(discordId, "");
+                } else {
+                    whitelist.remove(discordId);
+                }
+                saveWhitelist();
+                sender.sendMessage("§a" + (sub.equals("add") ? "Added §b" : "Removed §b") + discordUser + (sub.equals("add") ? "§a to" : "§a from") + " the whitelist.");
+
+                JsonObject payload = new JsonObject();
+                payload.addProperty("type",         sub.equals("add") ? "whitelist_add" : "whitelist_remove");
+                payload.addProperty("discord_user", discordId);
+                payload.addProperty("notify",       notify);
+                Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+                    try {
+                        postJson(BOT_EVENT_URL, gson.toJson(payload), secret, 5000);
                     } catch (IOException e) {
-                        String msg = "§c" + e.getMessage();
+                        String msg = "§eWhitelist updated, but the bot could not update their server list: " + e.getMessage();
                         Bukkit.getScheduler().runTask(this, () -> sender.sendMessage(msg));
                     }
                 });
@@ -238,22 +274,35 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
                 payload.addProperty("mc_port", getServer().getPort());
                 if (hostToSend != null)
                     payload.addProperty("host", hostToSend);
+                if (serverName.isEmpty())
+                    serverName = hostToSend != null ? hostToSend : "Minecraft server";
+                payload.addProperty("server_id",   serverId);
+                payload.addProperty("server_name", serverName);
 
                 String resp = postJson(BOT_SETUP_URL, gson.toJson(payload), null, 10000);
 
-                String pubKey    = extractJsonField(resp, "discord_public_key");
+                String appId     = extractJsonField(resp, "application_id");
                 String regHost   = extractJsonField(resp, "host");
                 String pluginUrl = extractJsonField(resp, "plugin_url");
+                if (!appId.matches("\\d{17,20}")) throw new IOException("the bot did not return a Discord application ID");
 
+                // The verification key comes from Discord, never from the bot.
+                String pubKey = extractJsonField(getJson(DISCORD_API + "/applications/" + appId + "/rpc", 10000), "verify_key");
+                if (!pubKey.matches("[0-9a-f]{64}")) throw new IOException("Discord did not return a public key for application " + appId);
+
+                getConfig().set("discord_application_id", appId);
                 getConfig().set("discord_public_key", pubKey);
+                getConfig().set("server_name", serverName);
                 saveConfig();
+                discordAppId = appId;
                 discordPublicKey = pubKey;
 
                 Bukkit.getScheduler().runTask(this, () -> {
                     sender.sendMessage("§a§lSetup complete!");
                     sender.sendMessage("§eServer registered as: §b" + regHost);
                     sender.sendMessage("§ePlugin URL: §7" + pluginUrl);
-                    sender.sendMessage("§eDiscord public key stored.");
+                    sender.sendMessage("§eConsole confirmations will name this server §b" + serverName + " §7(" + serverId + ")");
+                    sender.sendMessage("§eDiscord public key fetched from Discord for application §7" + appId);
                     sender.sendMessage("§eNext: §f/endercord whitelist add <discord_username>");
                 });
             } catch (IOException e) {
@@ -290,6 +339,8 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
         httpServer.createContext("/player/",   ex -> secured(ex, this::handlePlayer));
         httpServer.createContext("/sessions/", ex -> secured(ex, this::handleSessions));
         httpServer.createContext("/exec",      ex -> secured(ex, this::handleExec));
+        // /link: X-Secret + valid Discord signature, from a user with a pending invite
+        httpServer.createContext("/link",      ex -> signed(ex, this::handleLink));
         httpServer.setExecutor(Executors.newCachedThreadPool());
         httpServer.start();
     }
@@ -312,6 +363,19 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
     // This ensures every request genuinely came from a whitelisted Discord user —
     // even the bot operator cannot forge a request without a valid Discord signature.
     private void secured(HttpExchange ex, Handler h) throws IOException {
+        signed(ex, e -> {
+            String userId = discordUserId((JsonObject) e.getAttribute("discord"));
+            if (userId == null || !whitelist.containsKey(userId)) {
+                respond(e, 403, "{\"error\":\"discord user not whitelisted\"}");
+                return;
+            }
+            h.handle(e);
+        });
+    }
+
+    // Checks X-Secret + a fresh Discord Ed25519 signature for this server's Discord application,
+    // then hands the verified interaction to the handler as the "discord" exchange attribute.
+    private void signed(HttpExchange ex, Handler h) throws IOException {
         if (!secret.equals(ex.getRequestHeaders().getFirst("X-Secret"))) {
             respond(ex, 401, "{\"error\":\"unauthorized\"}");
             return;
@@ -350,16 +414,23 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
             return;
         }
 
-        if (!verifyDiscordSignature(timestamp, body, sigHex)) {
+        if (!verifyDiscordSignature(discordPublicKey, timestamp, body, sigHex)) {
             respond(ex, 401, "{\"error\":\"invalid discord signature\"}");
             return;
         }
 
-        String userId = extractDiscordUserId(body);
-        if (userId == null || !whitelist.contains(userId)) {
-            respond(ex, 403, "{\"error\":\"discord user not whitelisted\"}");
+        JsonObject interaction;
+        try {
+            interaction = JsonParser.parseString(body).getAsJsonObject();
+        } catch (Exception e) {
+            respond(ex, 400, "{\"error\":\"invalid interaction\"}");
             return;
         }
+        if (!discordAppId.isEmpty() && !discordAppId.equals(stringAt(interaction, "application_id"))) {
+            respond(ex, 401, "{\"error\":\"interaction is for a different discord application\"}");
+            return;
+        }
+        ex.setAttribute("discord", interaction);
 
         try {
             h.handle(ex);
@@ -441,10 +512,16 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
             respond(ex, 405, "{\"error\":\"method not allowed\"}");
             return;
         }
-        String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-        String command = extractJsonField(body, "command");
-        if (command == null || command.isEmpty()) {
-            respond(ex, 400, "{\"error\":\"missing command\"}");
+        // Run only a command the user confirmed for this server: a Discord-signed click on
+        // "Run" under a message that names this server, so the bot cannot redirect or alter it.
+        JsonObject interaction = (JsonObject) ex.getAttribute("discord");
+        String command = confirmedConsoleCommand(interaction, serverName, serverId);
+        if (command == null) {
+            respond(ex, 403, "{\"error\":\"not a signed Run confirmation for this server\"}");
+            return;
+        }
+        if (!claimInteraction(stringAt(interaction, "id"))) {
+            respond(ex, 409, "{\"error\":\"this confirmation was already used\"}");
             return;
         }
 
@@ -643,6 +720,12 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
             ")"
         );
         db.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS used_interactions (" +
+            "  id TEXT PRIMARY KEY," +
+            "  used_at INTEGER NOT NULL" +
+            ")"
+        );
+        db.createStatement().execute(
             "CREATE TABLE IF NOT EXISTS usercache (" +
             "  uuid TEXT PRIMARY KEY," +
             "  name TEXT NOT NULL" +
@@ -721,8 +804,13 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
         whitelist.clear();
         if (!whitelistFile.exists()) return;
         try (Reader r = new InputStreamReader(new FileInputStream(whitelistFile), StandardCharsets.UTF_8)) {
-            JsonArray arr = JsonParser.parseReader(r).getAsJsonArray();
-            for (JsonElement el : arr) whitelist.add(el.getAsString());
+            JsonElement root = JsonParser.parseReader(r);
+            if (root.isJsonArray()) {
+                for (JsonElement el : root.getAsJsonArray()) whitelist.put(el.getAsString(), "");
+            } else {
+                for (Map.Entry<String, JsonElement> e : root.getAsJsonObject().entrySet())
+                    whitelist.put(e.getKey(), e.getValue().getAsString());
+            }
             getLogger().info("Loaded " + whitelist.size() + " whitelisted Discord user(s).");
         } catch (Exception e) {
             getLogger().warning("Failed to load whitelist.json: " + e.getMessage());
@@ -730,10 +818,10 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
     }
 
     private void saveWhitelist() {
-        JsonArray arr = new JsonArray();
-        whitelist.forEach(arr::add);
+        JsonObject obj = new JsonObject();
+        whitelist.forEach(obj::addProperty);
         try (Writer w = new OutputStreamWriter(new FileOutputStream(whitelistFile), StandardCharsets.UTF_8)) {
-            new GsonBuilder().setPrettyPrinting().create().toJson(arr, w);
+            new GsonBuilder().setPrettyPrinting().create().toJson(obj, w);
         } catch (Exception e) {
             getLogger().warning("Failed to save whitelist.json: " + e.getMessage());
         }
@@ -743,7 +831,7 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
 
     // Verifies Discord's Ed25519 signature independently of the bot operator.
     // Trust root is Discord, not the bot. Anyone can audit this in the open-source plugin.
-    private boolean verifyDiscordSignature(String timestamp, String body, String sigHex) {
+    static boolean verifyDiscordSignature(String discordPublicKey, String timestamp, String body, String sigHex) {
         try {
             byte[] rawKey = hexToBytes(discordPublicKey);
             // Wrap raw Ed25519 key bytes into X.509 SubjectPublicKeyInfo format (required by Java)
@@ -764,21 +852,113 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
         }
     }
 
-    private String extractDiscordUserId(String body) {
-        try {
-            JsonObject obj = JsonParser.parseString(body).getAsJsonObject();
-            if (obj.has("member") && !obj.get("member").isJsonNull()) {
-                JsonObject member = obj.getAsJsonObject("member");
-                if (member.has("user"))
-                    return member.getAsJsonObject("user").get("id").getAsString();
-            }
-            if (obj.has("user"))
-                return obj.getAsJsonObject("user").get("id").getAsString();
-            return null;
-        } catch (Exception e) { return null; }
+    // The confirmation the bot must show before a console command runs. The plugin rebuilds it from
+    // its own name and ID, so a confirmation shown for another server never matches this one.
+    static String confirmationText(String command, String serverName, String serverId) {
+        return "Run `" + command + "` on **" + serverName + "** (`" + serverId + "`)?";
     }
 
-    private byte[] hexToBytes(String hex) {
+    // Returns the command from a signed click on a button labelled "Run" whose message is exactly
+    // this server's confirmation, or null for anything else.
+    static String confirmedConsoleCommand(JsonObject interaction, String serverName, String serverId) {
+        try {
+            if (interaction.get("type").getAsInt() != 3) return null;
+            JsonObject data = interaction.getAsJsonObject("data");
+            if (data.get("component_type").getAsInt() != 2) return null;
+            String clicked = data.get("custom_id").getAsString();
+
+            JsonObject message = interaction.getAsJsonObject("message");
+            String label = null;
+            for (JsonElement row : message.getAsJsonArray("components"))
+                for (JsonElement c : row.getAsJsonObject().getAsJsonArray("components")) {
+                    JsonObject button = c.getAsJsonObject();
+                    if (clicked.equals(stringAt(button, "custom_id"))) label = stringAt(button, "label");
+                }
+            if (!"Run".equals(label)) return null;
+            if (message.has("embeds") && !message.getAsJsonArray("embeds").isEmpty()) return null;
+
+            String content = message.get("content").getAsString();
+            String prefix = "Run `";
+            String suffix = confirmationText("", serverName, serverId).substring(prefix.length());
+            if (!content.startsWith(prefix) || !content.endsWith(suffix)) return null;
+            String command = content.substring(prefix.length(), content.length() - suffix.length());
+            if (command.isBlank() || command.contains("`") || command.contains("\n")) return null;
+            return confirmationText(command, serverName, serverId).equals(content) ? command : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    // Records an interaction ID so the same signed request can only be acted on once.
+    private synchronized boolean claimInteraction(String id) throws SQLException {
+        if (id == null || id.isEmpty()) return false;
+        long now = System.currentTimeMillis() / 1000;
+        try (PreparedStatement prune = db.prepareStatement("DELETE FROM used_interactions WHERE used_at < ?")) {
+            prune.setLong(1, now - 600);
+            prune.executeUpdate();
+        }
+        try (PreparedStatement st = db.prepareStatement("INSERT OR IGNORE INTO used_interactions (id, used_at) VALUES (?, ?)")) {
+            st.setString(1, id);
+            st.setLong(2, now);
+            return st.executeUpdate() == 1;
+        }
+    }
+
+    // /link: whitelists the signed user if their Discord username has a pending invite.
+    private void handleLink(HttpExchange ex) throws Exception {
+        JsonObject interaction = (JsonObject) ex.getAttribute("discord");
+        boolean isLink = interaction.get("type").getAsInt() == 2
+            && "link".equals(stringAt(interaction.getAsJsonObject("data"), "name"));
+        JsonObject user = discordUser(interaction);
+        String id = user == null ? null : stringAt(user, "id");
+        String username = user == null ? null : stringAt(user, "username");
+        if (!isLink || id == null || username == null) {
+            respond(ex, 403, "{\"error\":\"not a signed /link interaction\"}");
+            return;
+        }
+
+        Long expiry = pendingLinks.get(username.toLowerCase());
+        if (expiry == null || expiry < System.currentTimeMillis()) {
+            pendingLinks.remove(username.toLowerCase());
+            respond(ex, 403, "{\"error\":\"no pending invite for this user\"}");
+            return;
+        }
+        if (!claimInteraction(stringAt(interaction, "id"))) {
+            respond(ex, 409, "{\"error\":\"this /link was already used\"}");
+            return;
+        }
+
+        pendingLinks.remove(username.toLowerCase());
+        whitelist.put(id, username);
+        saveWhitelist();
+        getLogger().info("Linked Discord user " + username + " (" + id + ") and added them to the whitelist.");
+        respond(ex, 200, "{\"ok\":true,\"discord_id\":\"" + id + "\"}");
+    }
+
+    private String idForUsername(String username) {
+        for (Map.Entry<String, String> e : whitelist.entrySet())
+            if (e.getValue().equalsIgnoreCase(username)) return e.getKey();
+        return null;
+    }
+
+    private static String stringAt(JsonObject obj, String key) {
+        if (obj == null || !obj.has(key) || obj.get(key).isJsonNull()) return null;
+        return obj.get(key).getAsString();
+    }
+
+    private static JsonObject discordUser(JsonObject interaction) {
+        JsonElement member = interaction.get("member");
+        if (member != null && member.isJsonObject() && member.getAsJsonObject().has("user"))
+            return member.getAsJsonObject().getAsJsonObject("user");
+        JsonElement user = interaction.get("user");
+        return user != null && user.isJsonObject() ? user.getAsJsonObject() : null;
+    }
+
+    private static String discordUserId(JsonObject interaction) {
+        return interaction == null ? null : stringAt(discordUser(interaction), "id");
+    }
+
+    private static byte[] hexToBytes(String hex) {
         byte[] data = new byte[hex.length() / 2];
         for (int i = 0; i < hex.length(); i += 2)
             data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
@@ -819,6 +999,18 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
             throw new IOException(error.isEmpty() ? "HTTP " + code : error);
         }
         return responseBody;
+    }
+
+    private String getJson(String url, int timeoutMs) throws IOException {
+        HttpURLConnection conn = (HttpURLConnection) URI.create(url).toURL().openConnection();
+        conn.setConnectTimeout(timeoutMs);
+        conn.setReadTimeout(timeoutMs);
+        int code = conn.getResponseCode();
+        InputStream is = code < 400 ? conn.getInputStream() : conn.getErrorStream();
+        String body = is != null ? new String(is.readAllBytes(), StandardCharsets.UTF_8) : "";
+        conn.disconnect();
+        if (code >= 400) throw new IOException("HTTP " + code + " from " + url);
+        return body;
     }
 
     private int parseCount(String query, int def) {

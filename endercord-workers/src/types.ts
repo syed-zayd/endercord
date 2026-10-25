@@ -14,6 +14,8 @@ export interface Server {
   secret: string;
   mc_port: number;       // Minecraft game port (for /serverinfo ping); default 25565
   added_at: number;
+  server_key: string | null;    // random ID the plugin generated; names it in /console confirmations
+  display_name: string | null;  // the name the plugin uses for itself in /console confirmations
 }
 
 export interface UserServer extends Server {
@@ -52,7 +54,7 @@ export interface DiscordInteraction {
   member?: { user: DiscordUser; permissions?: string };
   user?: DiscordUser;
   token: string;
-  message?: { components?: ActionRow[] };
+  message?: { content?: string; components?: ActionRow[] };
 }
 
 export interface InteractionData {
