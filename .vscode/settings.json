@@ -1,0 +1,10 @@
+{
+    "java.compile.nullAnalysis.mode": "automatic",
+    "java.configuration.updateBuildConfiguration": "automatic",
+    // Use the project's Gradle wrapper (9.5.1) for IDE import — it supports Java 25.
+    "java.import.gradle.wrapper.enabled": true,
+    // Disable the Gradle Build Server: its bundled Gradle can't read Java 25
+    // bytecode ("Unsupported class file major version 69"). Falling back to the
+    // classic Tooling-API import uses the wrapper instead, which handles Java 25.
+    "java.gradle.buildServer.enabled": false
+}

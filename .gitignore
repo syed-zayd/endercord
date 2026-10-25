@@ -1,0 +1,34 @@
+# ── Java build output ────────────────────────────────────────────────
+out/
+build/
+classes/
+bin/
+*.class
+
+# Built plugin jars (produced by the build, not source)
+*.jar
+# …but DO track the Gradle wrapper jar (needed to bootstrap the build)
+!gradle/wrapper/gradle-wrapper.jar
+
+# Gradle
+.gradle/
+
+# ── Node / Cloudflare Workers ────────────────────────────────────────
+node_modules/
+.wrangler/
+.dev.vars          # local wrangler secrets — never commit
+**/.env*
+**/CLAUDE.md
+
+# ── Editors / OS ─────────────────────────────────────────────────────
+.idea/
+*.iml
+# Ignore local VS Code state, but share project-level config (build settings, etc.)
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+# ── Misc ─────────────────────────────────────────────────────────────
+*.bak

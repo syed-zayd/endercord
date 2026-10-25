@@ -1,0 +1,9 @@
+name: Endercord
+version: '1.0'
+main: com.zaydsyed.endercord.EndercordPlugin
+api-version: '26.1'
+commands:
+  endercord:
+    description: Endercord admin commands
+    usage: /endercord setup | /endercord whitelist <add|remove|list|reload>
+    default: op
