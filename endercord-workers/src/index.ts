@@ -4,10 +4,11 @@ import { handleSetup } from './setup.js';
 import { syncCommands } from './register.js';
 import { handleServersCommand, handleServersSwitch, handleServersRemove } from './commands/servers.js';
 import { handlePlayerCommand, handlePlayerButton } from './commands/player.js';
-import { handleConsoleCommand, handleTpsCommand, handleListCommand } from './commands/misc.js';
+import { handleConsoleButton, handleConsoleCommand, handleTpsCommand, handleListCommand } from './commands/misc.js';
 import { handleServerInfoCommand } from './commands/serverinfo.js';
 import { handleCaptureProof } from './commands/captureproof.js';
 import { handleNotifsCommand, handleSetNotifsCommand, handleNotifSelect } from './commands/notifs.js';
+import { handleLinkCommand } from './commands/link.js';
 import type { DiscordInteraction, Env, RequestCtx } from './types.js';
 
 export default {
@@ -62,7 +63,8 @@ async function routeCommand(
   switch (interaction.data!.name) {
     case 'servers':   return handleServersCommand(interaction, env);
     case 'player':    return handlePlayerCommand(interaction, env, ctx, reqCtx);
-    case 'console':   return handleConsoleCommand(interaction, env, ctx, reqCtx);
+    case 'console':   return handleConsoleCommand(interaction, env);
+    case 'link':      return handleLinkCommand(interaction, env, ctx, reqCtx);
     case 'tps':       return handleTpsCommand(interaction, env, ctx, reqCtx);
     case 'list':      return handleListCommand(interaction, env, ctx, reqCtx);
     case 'serverinfo': return handleServerInfoCommand(interaction, env, ctx);
@@ -77,6 +79,7 @@ async function routeComponent(
 ): Promise<object> {
   const id = interaction.data!.custom_id!;
   if (id.startsWith('player_btn:'))  return handlePlayerButton(interaction, env, ctx, reqCtx);
+  if (id === 'console_run' || id === 'console_cancel') return handleConsoleButton(interaction, env, ctx, reqCtx);
   if (id === 'servers_switch')       return handleServersSwitch(interaction, env);
   if (id === 'servers_remove')       return handleServersRemove(interaction, env);
   if (id.startsWith('notif:'))       return handleNotifSelect(interaction, env);

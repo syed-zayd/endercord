@@ -4,7 +4,9 @@ CREATE TABLE IF NOT EXISTS servers (
   plugin_url TEXT    NOT NULL,
   secret     TEXT    NOT NULL,
   mc_port    INTEGER NOT NULL DEFAULT 25565,
-  added_at   INTEGER NOT NULL
+  added_at   INTEGER NOT NULL,
+  server_key   TEXT,
+  display_name TEXT
 );
 
 CREATE TABLE IF NOT EXISTS registered_users (
@@ -28,6 +30,14 @@ CREATE TABLE IF NOT EXISTS channel_settings (
   join_notif    TEXT    NOT NULL DEFAULT 'off',
   leave_notif   TEXT    NOT NULL DEFAULT 'off',
   pingguard_notif TEXT  NOT NULL DEFAULT 'off'
+);
+
+-- Invites from /endercord whitelist add <username>, waiting for that user to run /link.
+CREATE TABLE IF NOT EXISTS pending_links (
+  server_id  INTEGER NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+  username   TEXT    NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (server_id, username)
 );
 
 -- Small key/value store. Used to track the registered slash-command hash

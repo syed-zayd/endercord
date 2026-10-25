@@ -6,7 +6,7 @@ import type {
 
 export async function getActiveServer(env: Env, discordId: string): Promise<UserServer | null> {
   return env.DB.prepare(`
-    SELECT s.id, s.host, s.plugin_url, s.secret, s.mc_port, s.added_at, us.is_default
+    SELECT s.*, us.is_default
     FROM servers s
     JOIN user_servers us ON us.server_id = s.id
     WHERE us.discord_id = ? AND us.is_default = 1
@@ -15,7 +15,7 @@ export async function getActiveServer(env: Env, discordId: string): Promise<User
 
 export async function getAllUserServers(env: Env, discordId: string): Promise<UserServer[]> {
   const { results } = await env.DB.prepare(`
-    SELECT s.id, s.host, s.plugin_url, s.secret, s.mc_port, s.added_at, us.is_default
+    SELECT s.*, us.is_default
     FROM servers s
     JOIN user_servers us ON us.server_id = s.id
     WHERE us.discord_id = ?
@@ -34,18 +34,52 @@ export async function getServerBySecret(env: Env, secret: string): Promise<Serve
 
 export async function upsertServer(
   env: Env, host: string, pluginUrl: string, secret: string, mcPort: number,
+  serverKey: string | null, displayName: string | null,
 ): Promise<number> {
   const existing = await env.DB.prepare('SELECT id FROM servers WHERE secret = ?')
     .bind(secret).first<{ id: number }>();
   if (existing) {
-    await env.DB.prepare('UPDATE servers SET host = ?, plugin_url = ?, mc_port = ? WHERE id = ?')
-      .bind(host, pluginUrl, mcPort, existing.id).run();
+    await env.DB.prepare(
+      'UPDATE servers SET host = ?, plugin_url = ?, mc_port = ?, server_key = ?, display_name = ? WHERE id = ?',
+    ).bind(host, pluginUrl, mcPort, serverKey, displayName, existing.id).run();
     return existing.id;
   }
   const result = await env.DB.prepare(
-    'INSERT INTO servers (host, plugin_url, secret, mc_port, added_at) VALUES (?, ?, ?, ?, ?)',
-  ).bind(host, pluginUrl, secret, mcPort, Math.floor(Date.now() / 1000)).run();
+    'INSERT INTO servers (host, plugin_url, secret, mc_port, added_at, server_key, display_name) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  ).bind(host, pluginUrl, secret, mcPort, Math.floor(Date.now() / 1000), serverKey, displayName).run();
   return result.meta.last_row_id as number;
+}
+
+// The user's server whose plugin generated this key, if they have access to it.
+export async function getUserServerByKey(env: Env, discordId: string, serverKey: string): Promise<Server | null> {
+  return env.DB.prepare(`
+    SELECT s.* FROM servers s
+    JOIN user_servers us ON us.server_id = s.id
+    WHERE us.discord_id = ? AND s.server_key = ?
+  `).bind(discordId, serverKey).first<Server>();
+}
+
+// ── Pending /link invites ──────────────────────────────────────────────
+
+export async function addPendingLink(env: Env, serverId: number, username: string): Promise<void> {
+  await env.DB.prepare(`
+    INSERT INTO pending_links (server_id, username, created_at) VALUES (?, ?, ?)
+    ON CONFLICT (server_id, username) DO UPDATE SET created_at = excluded.created_at
+  `).bind(serverId, username.toLowerCase(), Math.floor(Date.now() / 1000)).run();
+}
+
+export async function getPendingLinkServers(env: Env, username: string): Promise<Server[]> {
+  const { results } = await env.DB.prepare(`
+    SELECT s.* FROM servers s
+    JOIN pending_links p ON p.server_id = s.id
+    WHERE p.username = ? AND p.created_at > ?
+  `).bind(username.toLowerCase(), Math.floor(Date.now() / 1000) - 30 * 60).all<Server>();
+  return results;
+}
+
+export async function removePendingLink(env: Env, serverId: number, username: string): Promise<void> {
+  await env.DB.prepare('DELETE FROM pending_links WHERE server_id = ? AND username = ?')
+    .bind(serverId, username.toLowerCase()).run();
 }
 
 // ── Users ──────────────────────────────────────────────────────────────

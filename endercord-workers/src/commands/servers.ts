@@ -30,8 +30,8 @@ async function serversList(
         description:
           "You're registered. To get access to a Minecraft server, ask a server operator to run one of these in the server console:\n\n" +
           `\`\`\`\n/endercord whitelist add ${username}\n\`\`\`\n` +
-          `\`\`\`\n/endercord whitelist add ${discordId}\n\`\`\`\n` +
-          "Once added you'll get a DM and it'll be set as your active server.",
+          "then run `/link` here within 30 minutes, or have them add your user ID directly:\n\n" +
+          `\`\`\`\n/endercord whitelist add ${discordId}\n\`\`\`\n`,
         color: COLORS.BLURPLE,
       }],
     });

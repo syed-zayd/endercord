@@ -1,29 +1,63 @@
-import { COLORS, deferEphemeral, deferPublic, editDeferred, errorEmbed, getUser } from '../discord.js';
-import { getActiveServer } from '../db.js';
+import { COLORS, deferEphemeral, deferPublic, deferUpdate, editDeferred, errorEmbed, getUser, immediate, updateMessage } from '../discord.js';
+import { getActiveServer, getUserServerByKey } from '../db.js';
 import { pluginExec, pluginGet } from '../plugin.js';
 import type { DiscordInteraction, Env, PluginPlayers, PluginTps, RequestCtx } from '../types.js';
 
-export function handleConsoleCommand(
-  interaction: DiscordInteraction, env: Env, ctx: ExecutionContext, reqCtx: RequestCtx,
-): object {
-  const command = interaction.data!.options!.find(o => o.name === 'command')!.value as string;
-  ctx.waitUntil(runConsole(interaction, env, command, reqCtx));
-  return deferEphemeral();
+// /console never runs anything directly. It shows a confirmation naming the server, and the plugin
+// runs the command only from Discord's signed click on "Run" under exactly that text, so a bot
+// that redirects or rewrites commands gets them refused.
+export function confirmationText(command: string, serverName: string, serverKey: string): string {
+  return `Run \`${command}\` on **${serverName}** (\`${serverKey}\`)?`;
 }
 
-async function runConsole(
-  interaction: DiscordInteraction, env: Env, command: string, reqCtx: RequestCtx,
-): Promise<void> {
+export async function handleConsoleCommand(interaction: DiscordInteraction, env: Env): Promise<object> {
+  const command = (interaction.data!.options!.find(o => o.name === 'command')!.value as string).trim();
   const server = await getActiveServer(env, getUser(interaction).id);
-  if (!server) { await editDeferred(env, interaction.token, { embeds: [noServerEmbed()] }); return; }
+  if (!server) return immediate({ embeds: [noServerEmbed()] });
+  if (!server.server_key || !server.display_name) {
+    return immediate({ embeds: [errorEmbed('This server needs updating. Ask its operator to update Endercord and run `/endercord setup` again.')] });
+  }
+  if (!command || command.includes('`') || command.includes('\n')) {
+    return immediate({ embeds: [errorEmbed('Console commands cannot contain backticks or line breaks.')] });
+  }
+  return immediate({
+    content: confirmationText(command, server.display_name, server.server_key),
+    components: [{
+      type: 1,
+      components: [
+        { type: 2, style: 4, label: 'Run', custom_id: 'console_run' },
+        { type: 2, style: 2, label: 'Cancel', custom_id: 'console_cancel' },
+      ],
+    }],
+  });
+}
+
+export function handleConsoleButton(
+  interaction: DiscordInteraction, env: Env, ctx: ExecutionContext, reqCtx: RequestCtx,
+): object {
+  if (interaction.data!.custom_id === 'console_cancel') return updateMessage({ content: 'Cancelled.', components: [] });
+  ctx.waitUntil(runConsole(interaction, env, reqCtx));
+  return deferUpdate();
+}
+
+async function runConsole(interaction: DiscordInteraction, env: Env, reqCtx: RequestCtx): Promise<void> {
+  const content = interaction.message?.content ?? '';
+  const key = content.match(/\(`([^`]+)`\)\?$/)?.[1];
+  const command = content.match(/^Run `([^`]*)`/)?.[1] ?? '';
+  const server = key ? await getUserServerByKey(env, getUser(interaction).id, key) : null;
+  if (!server) {
+    await editDeferred(env, interaction.token, { content, components: [], embeds: [errorEmbed('You no longer have access to that server.')] });
+    return;
+  }
   try {
-    const [status, data] = await pluginExec(server, command, reqCtx);
+    const [status, data] = await pluginExec(server, reqCtx);
     const output = status === 200 ? (data.output ?? '(no output)') : (data.error ?? 'Plugin error');
     await editDeferred(env, interaction.token, {
-      content: `**\`${command}\`**\n\`\`\`\n${output.slice(0, 1900)}\n\`\`\``,
+      content: `**\`${command}\`** on **${server.display_name ?? server.host}**\n\`\`\`\n${output.slice(0, 1800)}\n\`\`\``,
+      components: [],
     });
   } catch (e) {
-    await editDeferred(env, interaction.token, { embeds: [errorEmbed(String(e))] });
+    await editDeferred(env, interaction.token, { content, components: [], embeds: [errorEmbed(String(e))] });
   }
 }
 
