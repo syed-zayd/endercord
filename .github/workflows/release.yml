@@ -51,6 +51,7 @@ jobs:
           images: ghcr.io/${{ github.repository }}-bot
           tags: |
             type=ref,event=tag
+            type=raw,value=latest
       - uses: docker/build-push-action@v6
         with:
           context: ./endercord-workers
@@ -58,3 +59,20 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+      - name: Remove superseded private preview image
+        if: github.ref_name == 'v1.0.0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          endpoint="/users/$PACKAGE_OWNER/packages/container/endercord-bot/versions?per_page=100"
+          ids="$(gh api --paginate "$endpoint" --jq '.[] | select(.metadata.container.tags == ["v1.1.0"]) | .id')"
+          for id in $ids; do
+            gh api --method DELETE "/users/$PACKAGE_OWNER/packages/container/endercord-bot/versions/$id"
+          done
+          remaining="$(gh api --paginate "$endpoint" --jq '.[] | select(.metadata.container.tags | index("v1.1.0")) | .id')"
+          if [ -n "$remaining" ]; then
+            echo 'The preview image still has another tag; its version was preserved.' >&2
+            exit 1
+          fi
