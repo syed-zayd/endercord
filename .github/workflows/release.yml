@@ -20,10 +20,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release create "$RELEASE_TAG" endercord-plugin/build/libs/Endercord.jar --draft --generate-notes
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" endercord-plugin/build/libs/Endercord.jar --clobber
+          else
+            gh release create "$RELEASE_TAG" endercord-plugin/build/libs/Endercord.jar --draft --generate-notes
+          fi
   image:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
