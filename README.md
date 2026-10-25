@@ -1,10 +1,12 @@
 # Endercord
 
-Run your Minecraft server from Discord **without trusting the bot with your console**.
-Check players, TPS and inventories, get join/leave alerts, and run commands after confirmation.
+Endercord is a bridge between Discord and your Minecraft server. It lets you check player counts,
+view player inventories, run console commands, and more from Discord. Add the bot to your Discord
+server and install the Paper plugin to get started.
 
-The plugin verifies Discord's own signatures. The bot cannot forge your commands or silently
-run a confirmation on a different server. [How it works →](docs/security.md)
+Server operators whitelist Discord accounts with a plugin command. The plugin verifies commands
+using Discord's Ed25519 signatures, so it only runs commands authorized by those accounts—not
+just whatever the bot sends. [How it works →](docs/security.md)
 
 ## Setup
 
