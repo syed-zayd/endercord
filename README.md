@@ -5,8 +5,8 @@ view player inventories, run console commands, and more from Discord. Add the bo
 server and install the Paper plugin to get started.
 
 Server operators whitelist Discord accounts with a plugin command. The plugin verifies commands
-using Discord's Ed25519 signatures, so it only runs commands authorized by those accounts—not
-just whatever the bot sends. [How it works →](docs/security.md)
+using Discord's Ed25519 signatures, so it only runs commands authorized by those accounts.
+[How it works →](docs/security.md)
 
 ## Setup
 
