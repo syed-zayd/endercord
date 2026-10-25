@@ -441,10 +441,11 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
             respond(ex, 405, "{\"error\":\"method not allowed\"}");
             return;
         }
-        String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-        String command = extractJsonField(body, "command");
+        // Run only what the user typed into /console, read from the Discord-signed body,
+        // so neither the bot nor anyone holding the secret can substitute another command.
+        String command = signedConsoleCommand(ex);
         if (command == null || command.isEmpty()) {
-            respond(ex, 400, "{\"error\":\"missing command\"}");
+            respond(ex, 403, "{\"error\":\"command is not from a signed /console interaction\"}");
             return;
         }
 
@@ -762,6 +763,21 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    private String signedConsoleCommand(HttpExchange ex) {
+        try {
+            String body = new String(Base64.getDecoder().decode(ex.getRequestHeaders().getFirst("X-Discord-Body")), StandardCharsets.UTF_8);
+            JsonObject data = JsonParser.parseString(body).getAsJsonObject().getAsJsonObject("data");
+            if (!"console".equals(data.get("name").getAsString())) return null;
+            for (JsonElement option : data.getAsJsonArray("options")) {
+                JsonObject o = option.getAsJsonObject();
+                if ("command".equals(o.get("name").getAsString())) return o.get("value").getAsString();
+            }
+        } catch (Exception e) {
+            return null;
+        }
+        return null;
     }
 
     private String extractDiscordUserId(String body) {
