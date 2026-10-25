@@ -9,6 +9,7 @@ services:
       TRUST_PROXY: "true"
       # The default runs the bot beside Minecraft on the same Linux host.
       PLUGIN_HOST: ${PLUGIN_HOST:-host.docker.internal}
+      PLUGIN_PORT: ${PLUGIN_PORT:-8080}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

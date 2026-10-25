@@ -80,26 +80,28 @@ test('setup calls the plugin, ignores spoofed IP headers, and preserves server i
   const db = new SQLiteDatabase(':memory:');
   let validSecret = false;
   const plugin = createServer((req, res) => {
-    validSecret = req.headers['x-secret'] === 'plugin-secret';
+    validSecret = req.headers['x-secret'] === 'a'.repeat(64);
     const body = validSecret ? '{"ok":true}' : '{}';
     res.writeHead(validSecret ? 200 : 401, { 'Content-Length': Buffer.byteLength(body) }).end(body);
   });
   const pluginPort = await listen(plugin);
-  const bot = createBotServer({ env: environment(db) });
+  const bot = createBotServer({ env: environment(db), pluginHost: '127.0.0.1', pluginPort });
   const botPort = await listen(bot.server);
   try {
     const result = await fetch(`http://127.0.0.1:${botPort}/setup`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.99', 'X-Forwarded-For': '203.0.113.98' },
-      body: JSON.stringify({ secret: 'plugin-secret', port: pluginPort, host: 'mc.example.com', server_id: 'abcd1234', server_name: 'My server' }),
+      body: JSON.stringify({ secret: 'a'.repeat(64), port: pluginPort, host: 'mc.example.com', server_id: 'abcd1234', server_name: 'My server' }),
     });
     assert.equal(result.status, 200);
     const data = await result.json() as { plugin_url: string };
     assert.equal(data.plugin_url, `http://127.0.0.1:${pluginPort}`);
     assert.equal(validSecret, true);
+    const disallowed = await fetch(`http://127.0.0.1:${botPort}/setup`, { method: 'POST', body: JSON.stringify({ secret: 'a'.repeat(64), port: pluginPort === 8080 ? 8081 : 8080 }) });
+    assert.equal(disallowed.status, 400);
     const row = await db.prepare('SELECT host,server_key,display_name FROM servers').first();
     assert.deepEqual({ ...row as object }, { host: 'mc.example.com', server_key: 'abcd1234', display_name: 'My server' });
     const bad = await fetch(`http://127.0.0.1:${botPort}/setup`, {
-      method: 'POST', body: JSON.stringify({ secret: 'wrong', port: pluginPort }),
+      method: 'POST', body: JSON.stringify({ secret: 'b'.repeat(64), port: pluginPort }),
     });
     assert.equal(bad.status, 400);
     assert.equal((await db.prepare('SELECT id FROM servers').all()).results.length, 1);

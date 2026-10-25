@@ -14,7 +14,10 @@ export async function handleSetup(request: Request, env: Env): Promise<Response>
   }
 
   const { secret, port = 8080, host: connectHost, mc_port, server_id, server_name } = payload;
-  if (!secret) return Response.json({ error: 'missing secret' }, { status: 400 });
+  if (typeof secret !== 'string' || !/^[0-9a-f]{64}$/i.test(secret))
+    return Response.json({ error: 'invalid plugin secret' }, { status: 400 });
+  if (!Number.isInteger(port) || port < 1 || port > 65535)
+    return Response.json({ error: 'invalid plugin port' }, { status: 400 });
 
   const pluginUrl = `http://${ip}:${port}`;
   // `host` is the hostname the operator connected with (from the plugin); fall back to IP.

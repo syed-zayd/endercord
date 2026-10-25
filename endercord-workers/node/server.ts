@@ -9,6 +9,7 @@ export interface ServerOptions {
   // Only enable behind a reverse proxy which overwrites X-Forwarded-For.
   trustProxy?: boolean;
   pluginHost?: string;
+  pluginPort?: number;
   reportError?: (error: unknown) => void;
 }
 
@@ -52,6 +53,16 @@ export function createBotServer(options: ServerOptions) {
       // Never accept a client-supplied Cloudflare identity header on the Node server.
       headers.set('CF-Connecting-IP', options.pluginHost || requestIP(req, options.trustProxy === true));
       const method = req.method ?? 'GET';
+      if (path === '/setup' && method === 'POST' && options.pluginHost) {
+        let payload: { port?: number };
+        try { payload = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
+        catch { res.writeHead(400).end('Invalid JSON'); return; }
+        // A public setup request must not probe arbitrary ports on the Docker host.
+        if (!payload || (payload.port ?? 8080) !== (options.pluginPort ?? 8080)) {
+          res.writeHead(400).end('Plugin port does not match PLUGIN_PORT');
+          return;
+        }
+      }
       const request = new Request(new URL(req.url ?? '/', 'http://bot'), {
         method, headers,
         body: method === 'GET' || method === 'HEAD' ? undefined : Buffer.concat(chunks),
@@ -85,7 +96,9 @@ export async function runBot() {
   };
   const sync = await syncCommands(env);
   if (!sync.ok) { database.close(); throw new Error('Discord command registration failed; check application ID and bot token.'); }
-  const bot = createBotServer({ env, trustProxy: process.env.TRUST_PROXY === 'true', pluginHost: process.env.PLUGIN_HOST });
+  const pluginPort = Number(process.env.PLUGIN_PORT ?? 8080);
+  if (!Number.isInteger(pluginPort) || pluginPort < 1 || pluginPort > 65535) throw new Error('Invalid PLUGIN_PORT');
+  const bot = createBotServer({ env, trustProxy: process.env.TRUST_PROXY === 'true', pluginHost: process.env.PLUGIN_HOST, pluginPort });
   bot.server.listen(Number(process.env.PORT ?? 3000), '0.0.0.0', () => console.log('Endercord bot listening on port ' + (process.env.PORT ?? 3000)));
   for (const signal of ['SIGTERM', 'SIGINT']) {
     process.once(signal, () => {

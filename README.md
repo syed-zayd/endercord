@@ -50,6 +50,7 @@ DISCORD_APP_ID=your_application_id
 DISCORD_PUBLIC_KEY=your_public_key
 BOT_TOKEN=your_bot_token
 PLUGIN_HOST=host.docker.internal
+PLUGIN_PORT=8080
 ```
 
 Then run:
@@ -95,6 +96,8 @@ The bot must reach TCP **8080** on the Minecraft host. On the same machine, allo
 from Docker's bridge network; you do not need to expose this port to the Internet. For a bot on
 a separate machine, set `PLUGIN_HOST` in `.env` to the Minecraft machine's reachable IP or hostname,
 allow the port from that machine, and recreate the bot with `docker compose up -d`.
+If you change `http-port`, set `PLUGIN_PORT` in `.env` to the same value. Docker setup callbacks
+are restricted to that host and port.
 
 ### 4. Set up and link
 
