@@ -16,7 +16,8 @@ bin/
 # ── Node / Cloudflare Workers ────────────────────────────────────────
 node_modules/
 .wrangler/
-.dev.vars          # local wrangler secrets — never commit
+# Local Wrangler secrets.
+.dev.vars*
 **/.env*
 !.env.example
 dist/
