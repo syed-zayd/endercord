@@ -1,3 +1,4 @@
+import type { RequestExecutionContext } from '../types.js';
 import { deferEphemeral, deferUpdate, editDeferred, errorEmbed, getUser, notFoundEmbed } from '../discord.js';
 import { getAllUserServers, getActiveServer, getServerById } from '../db.js';
 import { buildEnderChestEmbed, buildInventoryEmbed, buildLoginsEmbed, buildOverviewEmbed, playerButtons } from '../embeds.js';
@@ -7,7 +8,7 @@ import type { DiscordInteraction, Env, InteractionOption, PluginPlayer, PluginSe
 type Tab = 'overview' | 'inventory' | 'ender_chest' | 'logins';
 
 export function handlePlayerCommand(
-  interaction: DiscordInteraction, env: Env, ctx: ExecutionContext, reqCtx: RequestCtx,
+  interaction: DiscordInteraction, env: Env, ctx: RequestExecutionContext, reqCtx: RequestCtx,
 ): object {
   const sub = interaction.data!.options![0] as InteractionOption;
   const name = sub.options!.find(o => o.name === 'name')!.value as string;
@@ -56,7 +57,7 @@ function buildTabEmbed(tab: Tab, playerData: PluginPlayer, sessions: PluginSessi
 // ── Button handler ─────────────────────────────────────────────────────
 
 export function handlePlayerButton(
-  interaction: DiscordInteraction, env: Env, ctx: ExecutionContext, reqCtx: RequestCtx,
+  interaction: DiscordInteraction, env: Env, ctx: RequestExecutionContext, reqCtx: RequestCtx,
 ): object {
   const [, tab, serverIdStr, ...nameParts] = interaction.data!.custom_id!.split(':');
   const playerName = nameParts.join(':');

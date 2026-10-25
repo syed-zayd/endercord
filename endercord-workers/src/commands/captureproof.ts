@@ -1,3 +1,4 @@
+import type { RequestExecutionContext } from '../types.js';
 import { deferEphemeral, editDeferred, editDeferredFile, errorEmbed, getUser } from '../discord.js';
 import type { DiscordInteraction, Env, RequestCtx } from '../types.js';
 
@@ -7,7 +8,7 @@ import type { DiscordInteraction, Env, RequestCtx } from '../types.js';
 // independently-verifiable proof that survives the message being deleted.
 
 export function handleCaptureProof(
-  interaction: DiscordInteraction, env: Env, ctx: ExecutionContext, reqCtx: RequestCtx,
+  interaction: DiscordInteraction, env: Env, ctx: RequestExecutionContext, reqCtx: RequestCtx,
 ): object {
   ctx.waitUntil(run(interaction, env, reqCtx));
   return deferEphemeral();

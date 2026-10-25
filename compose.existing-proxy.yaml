@@ -1,0 +1,6 @@
+services:
+  bot:
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      TRUST_PROXY: "false"

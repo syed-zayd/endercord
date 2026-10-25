@@ -6,17 +6,23 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy && npm run register",
-    "register": "curl -fsS https://endercord-bot.zaydsyed9.workers.dev/commands/sync",
-    "register:force": "curl -fsS \"https://endercord-bot.zaydsyed9.workers.dev/commands/sync?force=1\""
+    "register": "node register-commands.mjs",
+    "register:force": "node register-commands.mjs --force",
+    "build:node": "node build-node.mjs",
+    "start": "node dist/server.mjs",
+    "check": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
+    "test": "node build-node.mjs --test && node --test dist/server.test.mjs"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250109.0",
+    "@cloudflare/workers-types": "^5.20261025.1",
+    "@types/node": "^24.19.2",
+    "esbuild": "^0.28.2",
     "typescript": "^6.0.3",
-    "wrangler": "^4.101.0"
+    "wrangler": "^4.152.0"
   },
   "allowScripts": {
-    "esbuild@0.27.3": true,
-    "workerd@1.20260616.1": true,
-    "sharp@0.34.5": true
+    "esbuild@0.28.2": true,
+    "workerd@1.20261019.1": true,
+    "sharp@0.35.5": true
   }
 }

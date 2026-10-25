@@ -1,0 +1,37 @@
+name: Checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - run: ./gradlew build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Endercord
+          path: endercord-plugin/build/libs/Endercord.jar
+  bot:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: endercord-workers
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: endercord-workers/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build:node
+      - run: docker build -t endercord-bot:check .

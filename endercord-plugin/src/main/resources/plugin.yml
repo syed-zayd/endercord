@@ -6,4 +6,9 @@ commands:
   endercord:
     description: Endercord admin commands
     usage: /endercord setup | /endercord whitelist <add|remove|list|reload>
+    permission: endercord.admin
+    permission-message: You must be a server operator to manage Endercord.
+permissions:
+  endercord.admin:
+    description: Set up Endercord and manage Discord console access
     default: op

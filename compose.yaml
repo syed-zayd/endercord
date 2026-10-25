@@ -1,0 +1,38 @@
+services:
+  bot:
+    build: ./endercord-workers
+    restart: unless-stopped
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN:?Set BOT_TOKEN in .env}
+      DISCORD_APP_ID: ${DISCORD_APP_ID:?Set DISCORD_APP_ID in .env}
+      DISCORD_PUBLIC_KEY: ${DISCORD_PUBLIC_KEY:?Set DISCORD_PUBLIC_KEY in .env}
+      TRUST_PROXY: "true"
+      # The default runs the bot beside Minecraft on the same Linux host.
+      PLUGIN_HOST: ${PLUGIN_HOST:-host.docker.internal}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - bot-data:/data
+    networks: [backend]
+  https:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      BOT_DOMAIN: ${BOT_DOMAIN:?Set BOT_DOMAIN in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [backend]
+    depends_on:
+      bot:
+        condition: service_healthy
+networks:
+  backend:
+volumes:
+  bot-data:
+  caddy-data:
+  caddy-config:

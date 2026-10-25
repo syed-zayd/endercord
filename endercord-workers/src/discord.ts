@@ -37,7 +37,7 @@ export function updateMessage(data: object) {
 
 // ── Discord REST helpers ───────────────────────────────────────────────
 
-function botHeaders(env: Env): HeadersInit {
+function botHeaders(env: Env): Record<string, string> {
   return { 'Content-Type': 'application/json', 'Authorization': `Bot ${env.BOT_TOKEN}` };
 }
 

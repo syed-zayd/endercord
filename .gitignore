@@ -18,6 +18,8 @@ node_modules/
 .wrangler/
 .dev.vars          # local wrangler secrets — never commit
 **/.env*
+!.env.example
+dist/
 **/CLAUDE.md
 
 # ── Editors / OS ─────────────────────────────────────────────────────

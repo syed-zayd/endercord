@@ -1,3 +1,4 @@
+import type { RequestExecutionContext } from './types.js';
 import { verifyDiscordRequest } from './verify.js';
 import { handlePluginEvent } from './events.js';
 import { handleSetup } from './setup.js';
@@ -12,7 +13,7 @@ import { handleLinkCommand } from './commands/link.js';
 import type { DiscordInteraction, Env, RequestCtx } from './types.js';
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: RequestExecutionContext): Promise<Response> {
     const { pathname } = new URL(request.url);
 
     if (pathname === '/event' && request.method === 'POST') {
@@ -55,7 +56,7 @@ export default {
 };
 
 async function routeCommand(
-  interaction: DiscordInteraction, env: Env, ctx: ExecutionContext, reqCtx: RequestCtx,
+  interaction: DiscordInteraction, env: Env, ctx: RequestExecutionContext, reqCtx: RequestCtx,
 ): Promise<object> {
   // Message context-menu command (type 3) — DEMO: Discord-signed message proof
   if (interaction.data!.type === 3) return handleCaptureProof(interaction, env, ctx, reqCtx);
@@ -75,7 +76,7 @@ async function routeCommand(
 }
 
 async function routeComponent(
-  interaction: DiscordInteraction, env: Env, ctx: ExecutionContext, reqCtx: RequestCtx,
+  interaction: DiscordInteraction, env: Env, ctx: RequestExecutionContext, reqCtx: RequestCtx,
 ): Promise<object> {
   const id = interaction.data!.custom_id!;
   if (id.startsWith('player_btn:'))  return handlePlayerButton(interaction, env, ctx, reqCtx);

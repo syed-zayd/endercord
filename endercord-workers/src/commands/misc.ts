@@ -1,3 +1,4 @@
+import type { RequestExecutionContext } from '../types.js';
 import { COLORS, deferEphemeral, deferPublic, deferUpdate, editDeferred, errorEmbed, getUser, immediate, updateMessage } from '../discord.js';
 import { getActiveServer, getUserServerByKey } from '../db.js';
 import { pluginExec, pluginGet } from '../plugin.js';
@@ -33,7 +34,7 @@ export async function handleConsoleCommand(interaction: DiscordInteraction, env:
 }
 
 export function handleConsoleButton(
-  interaction: DiscordInteraction, env: Env, ctx: ExecutionContext, reqCtx: RequestCtx,
+  interaction: DiscordInteraction, env: Env, ctx: RequestExecutionContext, reqCtx: RequestCtx,
 ): object {
   if (interaction.data!.custom_id === 'console_cancel') return updateMessage({ content: 'Cancelled.', components: [] });
   ctx.waitUntil(runConsole(interaction, env, reqCtx));
@@ -62,7 +63,7 @@ async function runConsole(interaction: DiscordInteraction, env: Env, reqCtx: Req
 }
 
 export function handleTpsCommand(
-  interaction: DiscordInteraction, env: Env, ctx: ExecutionContext, reqCtx: RequestCtx,
+  interaction: DiscordInteraction, env: Env, ctx: RequestExecutionContext, reqCtx: RequestCtx,
 ): object {
   ctx.waitUntil(runTps(interaction, env, reqCtx));
   return deferPublic();
@@ -96,7 +97,7 @@ async function runTps(interaction: DiscordInteraction, env: Env, reqCtx: Request
 }
 
 export function handleListCommand(
-  interaction: DiscordInteraction, env: Env, ctx: ExecutionContext, reqCtx: RequestCtx,
+  interaction: DiscordInteraction, env: Env, ctx: RequestExecutionContext, reqCtx: RequestCtx,
 ): object {
   ctx.waitUntil(runList(interaction, env, reqCtx));
   return deferPublic();

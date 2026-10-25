@@ -43,9 +43,10 @@ export async function pingMinecraft(
 ): Promise<McStatus> {
   const socket = connect({ hostname: host, port });
 
-  const timer = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error(`mc ping timed out after ${timeoutMs}ms`)), timeoutMs),
-  );
+  let timeout: ReturnType<typeof setTimeout>;
+  const timer = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => reject(new Error(`mc ping timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
 
   const run = (async (): Promise<McStatus> => {
     const addr = new TextEncoder().encode(handshakeAddr);
@@ -109,6 +110,7 @@ export async function pingMinecraft(
   try {
     return await Promise.race([run, timer]);
   } finally {
+    clearTimeout(timeout!);
     try { await socket.close(); } catch { /* already closed */ }
   }
 }

@@ -38,9 +38,10 @@ export async function rawRequest(
 ): Promise<RawResponse> {
   const socket = connect({ hostname: host, port });
 
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error(`plugin request timed out after ${timeoutMs}ms`)), timeoutMs),
-  );
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`plugin request timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
 
   const exchange = (async (): Promise<RawResponse> => {
     const bodyBytes = body != null ? ENC.encode(body) : null;
@@ -82,6 +83,7 @@ export async function rawRequest(
   try {
     return await Promise.race([exchange, timeout]);
   } finally {
+    clearTimeout(timer!);
     try { await socket.close(); } catch { /* already closed */ }
   }
 }

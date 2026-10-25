@@ -1,10 +1,11 @@
+import type { RequestExecutionContext } from '../types.js';
 import { COLORS, deferPublic, editDeferred, editDeferredFile, errorEmbed, getUser } from '../discord.js';
 import { getActiveServer } from '../db.js';
 import { pingMinecraft } from '../mcping.js';
 import type { DiscordEmbed, DiscordInteraction, Env } from '../types.js';
 
 export function handleServerInfoCommand(
-  interaction: DiscordInteraction, env: Env, ctx: ExecutionContext,
+  interaction: DiscordInteraction, env: Env, ctx: RequestExecutionContext,
 ): object {
   ctx.waitUntil(runServerInfo(interaction, env));
   return deferPublic();

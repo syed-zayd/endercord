@@ -1,5 +1,21 @@
+// Common runtime surface used by both Cloudflare D1 and the Docker SQLite adapter.
+export type SQLValue = string | number | null;
+export interface PreparedStatement {
+  bind(...values: SQLValue[]): PreparedStatement;
+  first<T = Record<string, unknown>>(): Promise<T | null>;
+  all<T = Record<string, unknown>>(): Promise<{ results: T[] }>;
+  run(): Promise<{ meta: { last_row_id: number } }>;
+}
+export interface BotDatabase {
+  prepare(sql: string): PreparedStatement;
+  batch(statements: PreparedStatement[]): Promise<unknown[]>;
+}
+export interface RequestExecutionContext {
+  waitUntil(promise: Promise<unknown>): void;
+}
+
 export interface Env {
-  DB: D1Database;
+  DB: BotDatabase;
   BOT_TOKEN: string;
   DISCORD_PUBLIC_KEY: string;
   DISCORD_APP_ID: string;

@@ -8,7 +8,7 @@ export async function handleSetup(request: Request, env: Env): Promise<Response>
 
   let payload: { secret?: string; port?: number; host?: string; mc_port?: number; server_id?: string; server_name?: string };
   try {
-    payload = await request.json();
+    payload = await request.json() as typeof payload;
   } catch {
     return Response.json({ error: 'invalid json' }, { status: 400 });
   }

@@ -34,8 +34,8 @@ import java.util.stream.*;
 
 public class EndercordPlugin extends JavaPlugin implements Listener {
 
-    private static final String BOT_EVENT_URL = "https://endercord-bot.zaydsyed9.workers.dev/event";
-    private static final String BOT_SETUP_URL = "https://endercord-bot.zaydsyed9.workers.dev/setup";
+    private String botEventUrl;
+    private String botSetupUrl;
 
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private HttpServer httpServer;
@@ -66,6 +66,25 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+
+        String botUrl = getConfig().getString("bot-url", "").trim().replaceAll("/+$", "");
+        if (botUrl.isEmpty()) {
+            getLogger().severe("Set bot-url in plugins/Endercord/config.yml to your bot's HTTPS address, then restart.");
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+        try {
+            URI uri = URI.create(botUrl);
+            if (!"https".equals(uri.getScheme()) || uri.getHost() == null || uri.getUserInfo() != null
+                    || uri.getQuery() != null || uri.getFragment() != null)
+                throw new IllegalArgumentException("expected an HTTPS address without credentials, query or fragment");
+        } catch (IllegalArgumentException e) {
+            getLogger().severe("Invalid bot-url: " + e.getMessage());
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+        botEventUrl = botUrl + "/event";
+        botSetupUrl = botUrl + "/setup";
 
         secret = getConfig().getString("secret", "");
         if (secret.isEmpty()) {
@@ -125,6 +144,10 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!sender.hasPermission("endercord.admin")) {
+            sender.sendMessage("§cYou must be a server operator to manage Endercord.");
+            return true;
+        }
         if (args.length == 0) {
             sender.sendMessage("§eUsage:");
             sender.sendMessage("  §f/endercord setup §7— register this server with the bot (run in-game to capture your hostname)");
@@ -197,7 +220,7 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
                     sender.sendMessage("§eInvited §b" + discordUser + "§e. They have 30 minutes to run §f/link§e in Discord.");
                     Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
                         try {
-                            postJson(BOT_EVENT_URL, gson.toJson(invite), secret, 5000);
+                            postJson(botEventUrl, gson.toJson(invite), secret, 5000);
                         } catch (IOException e) {
                             String msg = "§eThe bot could not DM them (" + e.getMessage() + "). Ask them to run /link.";
                             Bukkit.getScheduler().runTask(this, () -> sender.sendMessage(msg));
@@ -230,7 +253,7 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
                 payload.addProperty("notify",       notify);
                 Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
                     try {
-                        postJson(BOT_EVENT_URL, gson.toJson(payload), secret, 5000);
+                        postJson(botEventUrl, gson.toJson(payload), secret, 5000);
                     } catch (IOException e) {
                         String msg = "§eWhitelist updated, but the bot could not update their server list: " + e.getMessage();
                         Bukkit.getScheduler().runTask(this, () -> sender.sendMessage(msg));
@@ -248,8 +271,11 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
     private void handleSetupCommand(CommandSender sender, String[] args) {
         final String connectHost = (sender instanceof Player p) ? loginHosts.get(p.getUniqueId()) : null;
         final boolean usefulHost = isPublicHostname(connectHost);
+        String configuredHost = getConfig().getString("server-host", "").trim();
 
-        if (!(sender instanceof Player)) {
+        if (!configuredHost.isEmpty()) {
+            sender.sendMessage("§eRegistering with the configured server-host: §b" + configuredHost);
+        } else if (!(sender instanceof Player)) {
             sender.sendMessage("§6[Endercord] §eRunning from console — the server will register by its public IP, not a hostname.");
             sender.sendMessage("§7   Run §f/endercord setup§7 in-game (connected via your public domain) to register by hostname.");
         } else if (connectHost == null || connectHost.isBlank()) {
@@ -260,7 +286,8 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
             sender.sendMessage("§7   Registering by IP. Connect via your public domain and re-run so players see a proper address.");
         }
 
-        final String hostToSend = (usefulHost && connectHost != null) ? connectHost.trim() : null;
+        final String hostToSend = !configuredHost.isEmpty() ? configuredHost
+                : (usefulHost && connectHost != null) ? connectHost.trim() : null;
 
         sender.sendMessage("§eRunning setup, please wait...");
 
@@ -279,7 +306,7 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
                 payload.addProperty("server_id",   serverId);
                 payload.addProperty("server_name", serverName);
 
-                String resp = postJson(BOT_SETUP_URL, gson.toJson(payload), null, 10000);
+                String resp = postJson(botSetupUrl, gson.toJson(payload), null, 10000);
 
                 String appId     = extractJsonField(resp, "application_id");
                 String regHost   = extractJsonField(resp, "host");
@@ -610,7 +637,7 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
         String json = gson.toJson(payload);
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
             try {
-                postJson(BOT_EVENT_URL, json, secret, 3000);
+                postJson(botEventUrl, json, secret, 3000);
             } catch (Exception e) {
                 getLogger().warning("Failed to push event: " + e.getMessage());
             }

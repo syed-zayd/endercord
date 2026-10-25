@@ -6,7 +6,7 @@ export async function handlePluginEvent(request: Request, env: Env): Promise<Res
   const secret = request.headers.get('X-Secret') ?? '';
   let payload: Record<string, unknown>;
   try {
-    payload = await request.json();
+    payload = await request.json() as Record<string, unknown>;
   } catch {
     return Response.json({ error: 'invalid json' }, { status: 400 });
   }
