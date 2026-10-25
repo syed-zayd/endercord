@@ -1,5 +1,5 @@
-# Public HTTPS address of your own Endercord bot (no trailing /interactions).
-bot-url: ""
+# Hosted bot works out of the box. Change this only to self-host (no /interactions).
+bot-url: "https://endercord-bot.zaydsyed9.workers.dev"
 # Minecraft address shown in Discord. Set this to use setup from the server console.
 server-host: ""
 http-port: 8080

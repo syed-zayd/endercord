@@ -34,6 +34,7 @@ import java.util.stream.*;
 
 public class EndercordPlugin extends JavaPlugin implements Listener {
 
+    static final String DEFAULT_BOT_URL = "https://endercord-bot.zaydsyed9.workers.dev";
     private String botEventUrl;
     private String botSetupUrl;
 
@@ -67,12 +68,7 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
     public void onEnable() {
         saveDefaultConfig();
 
-        String botUrl = getConfig().getString("bot-url", "").trim().replaceAll("/+$", "");
-        if (botUrl.isEmpty()) {
-            getLogger().severe("Set bot-url in plugins/Endercord/config.yml to your bot's HTTPS address, then restart.");
-            getServer().getPluginManager().disablePlugin(this);
-            return;
-        }
+        String botUrl = resolveBotUrl(getConfig().getString("bot-url", ""));
         try {
             URI uri = URI.create(botUrl);
             if (!"https".equals(uri.getScheme()) || uri.getHost() == null || uri.getUserInfo() != null
@@ -994,6 +990,11 @@ public class EndercordPlugin extends JavaPlugin implements Listener {
     }
 
     // ── Utilities ─────────────────────────────────────────────────────────
+
+    static String resolveBotUrl(String configured) {
+        String url = configured == null ? "" : configured.trim().replaceAll("/+$", "");
+        return url.isEmpty() ? DEFAULT_BOT_URL : url;
+    }
 
     private String generateSecret() {
         byte[] bytes = new byte[32];

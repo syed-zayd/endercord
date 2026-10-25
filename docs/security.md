@@ -22,7 +22,7 @@ through to the plugin, and the plugin checks it before doing anything:
    rejects.
 5. **Each confirmation works once.** The plugin records the interaction IDs it has acted on.
 
-So a dishonest bot cannot make your server run anything. It can still refuse to pass things on,
+A dishonest bot cannot invent an authorized console command or silently send a confirmation to another server. It can still refuse to pass things on,
 see what you send and receive, and misreport results: command output, `/tps`, player lookups and
 alerts all reach Discord through the bot. Traffic between the bot and the plugin is plain HTTP, so
 it is also readable on the network path.

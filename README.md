@@ -1,84 +1,32 @@
 # Endercord
 
-Manage your Minecraft server from Discord: players, TPS, inventories, notifications, and console
-commands with confirmation. The plugin checks Discord's signatures before granting access or
-running a command. [How it works →](docs/security.md)
+Run your Minecraft server from Discord **without trusting the bot with your console**.
+Check players, TPS and inventories, get join/leave alerts, and run commands after confirmation.
+
+The plugin verifies Discord's own signatures. The bot cannot forge your commands or silently
+run a confirmation on a different server. [How it works →](docs/security.md)
 
 ## Setup
 
-**You need:** Paper with Java 25, Docker Compose on the same Linux machine, and a bot subdomain
-(e.g. `endercord.example.com`) pointing at it. Ports **80 and 443** must be free and open.
-[No domain? Use Cloudflare Workers instead.](docs/cloudflare.md)
+**Requires Paper 26.1.2+ and Java 25.** Use the hosted bot—no Docker, Discord developer account, or bot hostname needed.
 
-### 1. Create a Discord bot
+1. **[Add Endercord to Discord](https://discord.com/oauth2/authorize?client_id=1516215903673520188&permissions=52224&scope=bot%20applications.commands).**
+2. **[Download Endercord.jar](https://github.com/syed-zayd/endercord/releases/latest/download/Endercord.jar)**, put it in your server's `plugins/` folder, and restart Paper.
+3. **Open TCP 8080** in your server and hosting provider's firewalls so the bot can reach the plugin. [Help →](docs/hosting.md#hosted-bot)
+4. **In game as an operator**, connected through your public Minecraft address:
 
-Open the [Discord Developer Portal](https://discord.com/developers/applications) → **New Application**.
+   ```text
+   /endercord setup
+   /endercord whitelist add YOUR_DISCORD_USERNAME
+   ```
 
-- **General Information:** copy the Application ID and Public Key.
-- **Bot:** copy/reset the bot token.
-- **Installation:** enable Guild Install with `bot` + `applications.commands`. Select View Channels,
-  Send Messages, Embed Links and Attach Files, then open the install link to add it to your Discord server.
+5. **In Discord**, run `/link` within 30 minutes. Then try `/console say hello` → **Run**.
 
-### 2. Start it
+Only invite people you trust with full console access. The bot can see requests and misreport
+results; the signature checks protect command execution. [Security details →](docs/security.md)
 
-```bash
-git clone https://github.com/syed-zayd/endercord.git
-cd endercord
-cp .env.example .env
-chmod 600 .env
-nano .env
-```
+Want to run your own bot? [Docker](docs/self-hosting.md) · [Cloudflare Workers](docs/cloudflare.md)
 
-Set `BOT_DOMAIN` to your bot subdomain. Fill in `DISCORD_APP_ID`, `DISCORD_PUBLIC_KEY` and
-`BOT_TOKEN` with the values from step 1. Save, then run:
-
-```bash
-docker compose up -d --build
-```
-
-### 3. Connect Discord
-
-Open `https://YOUR_BOT_DOMAIN/health`. Once it shows `{"ok":true}`, go back to Discord's
-**General Information → Interactions Endpoint URL** and save:
-
-```text
-https://YOUR_BOT_DOMAIN/interactions
-```
-
-### 4. Install the plugin
-
-From the cloned repo, build with Java 25:
-
-```bash
-./gradlew build
-```
-
-Stop Paper. Copy `endercord-plugin/build/libs/Endercord.jar` into its `plugins/` folder.
-Create or edit `plugins/Endercord/config.yml` with your two addresses:
-
-```yaml
-bot-url: "https://endercord.example.com"
-server-host: "minecraft.example.com"
-```
-
-Start Paper. Allow Docker to reach the plugin on TCP **8080**. [Firewall/proxy help →](docs/hosting.md)
-
-### 5. Link and test
-
-In the **Minecraft server console**:
-
-```text
-endercord setup
-endercord whitelist add YOUR_DISCORD_USERNAME
-```
-
-In **Discord**, run `/link` within 30 minutes. Then run `/console say hello` and click **Run**.
-Only invite people you trust with full server console access.
-
----
-
-[Commands](docs/commands.md) · [Troubleshooting & hosting](docs/hosting.md) ·
-[Security](docs/security.md) · [Building & releases](docs/development.md) ·
-[Cloudflare option](docs/cloudflare.md)
+[Commands](docs/commands.md) · [Troubleshooting](docs/hosting.md#troubleshooting) · [Building & releases](docs/development.md)
 
 MIT licensed.

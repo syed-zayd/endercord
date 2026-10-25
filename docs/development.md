@@ -31,4 +31,4 @@ Pushing a `v*` tag runs the release workflow: it builds/tests the plugin, attach
 **draft** GitHub release, and builds/tests/pushes an amd64/arm64 bot image to
 `ghcr.io/syed-zayd/endercord-bot:<tag>`. Review/publish the draft and set the GHCR package's
 visibility to public when you are ready to share it. No release/image is published just by
-merging code. Until an image is published, the quick start builds locally from the Dockerfile.
+merging code. The [Docker guide](self-hosting.md) can build locally from the Dockerfile.

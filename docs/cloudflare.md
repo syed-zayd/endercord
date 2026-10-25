@@ -1,7 +1,7 @@
 # Cloudflare Workers deployment
 
 This is an alternative to Docker. You host the bot in your own Cloudflare account with D1.
-Create/install a Discord application as described in the main README first.
+Create/install your own Discord application as described in [the Docker guide](self-hosting.md#1-create-a-discord-bot) first.
 
 1. Install Node and sign in to Cloudflare with `npx wrangler login`.
 2. In `endercord-workers/`, run `npm ci` and `npx wrangler d1 create endercord`.

@@ -1,8 +1,19 @@
 # Hosting and troubleshooting
 
-The [README](../README.md) covers the default: Docker beside Paper on the same Linux machine.
+The [README](../README.md) uses the hosted bot. For your own bot, see the [Docker guide](self-hosting.md).
 
-## Network requirements
+## Hosted bot
+
+The hosted bot must reach the plugin's TCP port, **8080** by default. Allow inbound TCP 8080
+in both your server's firewall and your hosting provider's firewall/security rules. If the
+server is behind a router, forward this port to it. No separate bot hostname is needed.
+If your Minecraft host blocks custom inbound ports, ask it to allocate a reachable TCP port,
+set `http-port` in `plugins/Endercord/config.yml`, restart Paper, and rerun `/endercord setup`.
+
+For console-only setup, set `server-host` in the config to your public Minecraft address and
+restart Paper before running `endercord setup`. In-game setup detects the address you used.
+
+## Self-hosted bot networking
 
 Point your bot subdomain's DNS at the Docker machine. TCP ports 80 and 443 must be unused and
 open in the host and hosting provider firewalls. Any IPv6 DNS record must work too.
@@ -39,8 +50,8 @@ In the [Developer Portal](https://discord.com/developers/applications), select y
 
 ## Plugin configuration
 
-Set `bot-url` to the bot's HTTPS address, without `/interactions`. An empty value disables the
-plugin with a configuration message. `server-host` is the Minecraft address shown in Discord;
+`bot-url` defaults to the hosted bot; missing or empty values use that default too. To self-host,
+set it to your own bot's HTTPS address, without `/interactions`. `server-host` is the Minecraft address shown in Discord;
 it lets setup use that hostname from the server console. Without it, setup uses the hostname
 you connected with in game, or the public IP when run from the console.
 
